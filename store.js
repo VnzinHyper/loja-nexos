@@ -1,15 +1,15 @@
-// Nexos System — DB compartilhado Loja + Staff (v2 completo)
+// Legend Store — DB compartilhado Loja + Staff (v2 completo)
 const DB_KEY = 'nexos_db_v1';
 const DEFAULT_IMG = (id)=>`https://nexosystem.site/cdn/stores/21101/packages/${id}.png`;
 function defaultDB(){ return {
  settings:{
-  storeName:'Nexos System',
-  banner:'🎮 ENTRE NA COMUNIDADE DA NEXOS E RECEBA OFERTAS!',
+  storeName:'Legend Store',
+  banner:'🎮 ENTRE NA COMUNIDADE DA LEGEND E RECEBA OFERTAS!',
   discord:'https://discord.gg/HbH4bSktez',
   instagram:'https://www.instagram.com/nexossystem/',
-  whatsapp:'', pixKey:'seu-pix@nexosystem.site', pixName:'NEXOS SYSTEM', pixCity:'FORTALEZA',
+  whatsapp:'', pixKey:'seu-pix@legendstore.site', pixName:'LEGEND STORE', pixCity:'FORTALEZA',
   autoConfirmUrl:'',
-  supportEmail:'suporte@nexosystem.site', phone:'(85) 98887-2126',
+  supportEmail:'suporte@legendstore.site', phone:'(85) 98887-2126',
   cnpj:'GLAZUL SERVICOS DIGITAIS LTDA — CNPJ 68.712.202/0001-08',
   primary:'#7c5cff', secondary:'#00d4ff',
   heroTitle:'Bem-vindo(a) à',
@@ -26,7 +26,7 @@ function defaultDB(){ return {
   {id:'redes-sociais',label:'Redes Sociais',icon:'📱'}
  ],
  products:[],
- coupons:[{code:'NEXOS10',percent:10}],
+ coupons:[{code:'LEGEND10',percent:10}],
  orders:[], users:[], tickets:[], withdrawals:[], clicks:[],
  _v:2,
  reviews:[
@@ -44,10 +44,17 @@ const Store = {
    if(r){ const db=JSON.parse(r);
     const OLD=['https://discord.com/invite/nexosystem','https://discord.gg/nexosystem'];
     if(db.settings&&OLD.includes(db.settings.discord)) db.settings.discord='https://discord.gg/HbH4bSktez';
+    // renomeação: Nexos System → Legend Store (só onde ainda está o padrão antigo)
+    if(db.settings.storeName==='Nexos System') db.settings.storeName='Legend Store';
+    if(db.settings.banner==='🎮 ENTRE NA COMUNIDADE DA NEXOS E RECEBA OFERTAS!') db.settings.banner='🎮 ENTRE NA COMUNIDADE DA LEGEND E RECEBA OFERTAS!';
+    if(db.settings.pixName==='NEXOS SYSTEM') db.settings.pixName='LEGEND STORE';
+    if(db.settings.pixKey==='seu-pix@nexosystem.site') db.settings.pixKey='seu-pix@legendstore.site';
+    if(db.settings.supportEmail==='suporte@nexosystem.site') db.settings.supportEmail='suporte@legendstore.site';
+    if(db.coupons.find(c=>c.code==='NEXOS10')&&!db.coupons.find(c=>c.code==='LEGEND10')) db.coupons.find(c=>c.code==='NEXOS10').code='LEGEND10';
     // migração v2: garante tabelas novas
     db.users=db.users||[]; db.tickets=db.tickets||[]; db.withdrawals=db.withdrawals||[]; db.clicks=db.clicks||[];
     db.settings.pixCity=db.settings.pixCity||'FORTALEZA';
-    db.settings.pixName=db.settings.pixName||'NEXOS SYSTEM';
+    db.settings.pixName=db.settings.pixName||'LEGEND STORE';
     if(db.settings.autoConfirmUrl===undefined) db.settings.autoConfirmUrl='';
     // limpeza única: remove todos os produtos antigos (pedido do dono)
     if(db._v!==2){ db.products=[]; db._v=2; }
@@ -71,9 +78,9 @@ const Store = {
 function pixCRC16(s){let crc=0xFFFF;for(let i=0;i<s.length;i++){crc^=s.charCodeAt(i)<<8;for(let j=0;j<8;j++){crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);crc&=0xFFFF}}return crc.toString(16).toUpperCase().padStart(4,'0')}
 function tlv(id,v){return id+String(v.length).padStart(2,'0')+v}
 function genPixCode(key,name,city,amount,txid){
- key=String(key||'').trim(); name=String(name||'NEXOS').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').slice(0,25)||'NEXOS';
+ key=String(key||'').trim(); name=String(name||'LEGEND').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').slice(0,25)||'LEGEND';
  city=String(city||'BRASIL').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').slice(0,15)||'BRASIL';
- txid=String(txid||'NEXOS').replace(/[^a-zA-Z0-9]/g,'').slice(0,20)||'NEXOS';
+ txid=String(txid||'LEGEND').replace(/[^a-zA-Z0-9]/g,'').slice(0,20)||'LEGEND';
  const gui=tlv('00','br.gov.bcb.pix')+tlv('01',key);
  let p=tlv('00','01')+tlv('26',gui)+tlv('52','0000')+tlv('53','986')+(amount>0?tlv('54',Number(amount).toFixed(2)):'')+tlv('58','BR')+tlv('59',name)+tlv('60',city)+tlv('62',tlv('05',txid))+tlv('63','04');
  return p+pixCRC16(p+'6304');

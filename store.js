@@ -17,18 +17,11 @@ function defaultDB(){ return {
   rating:'4,6'
  },
  commissions:{steam:30, assinaturas:15, outros:12},
- categories:[
-  {id:'assinaturas',label:'Assinaturas',icon:'🎟️'},
-  {id:'steam-offline',label:'Steam Offline',icon:'💻'},
-  {id:'fortnite',label:'Fortnite',icon:'⚡'},
-  {id:'minecraft',label:'Minecraft & Hytale',icon:'⛏️'},
-  {id:'discord',label:'Discord',icon:'💜'},
-  {id:'redes-sociais',label:'Redes Sociais',icon:'📱'}
- ],
+ categories:[],
  products:[],
  coupons:[{code:'LEGEND10',percent:10}],
  orders:[], users:[], tickets:[], withdrawals:[], clicks:[],
- _v:2,
+ _v:3,
  reviews:[
   {n:'Luciano Dos Santos',d:'20/09/2026',t:'Entrega rápida',p:'Minecraft Java & Bedrock'},
   {n:'Thiago Oliveira',d:'19/09/2026',t:'Muito bom',p:'Game Pass Ultimate 30 Dias'},
@@ -56,8 +49,8 @@ const Store = {
     db.settings.pixCity=db.settings.pixCity||'FORTALEZA';
     db.settings.pixName=db.settings.pixName||'LEGEND STORE';
     if(db.settings.autoConfirmUrl===undefined) db.settings.autoConfirmUrl='';
-    // limpeza única: remove todos os produtos antigos (pedido do dono)
-    if(db._v!==2){ db.products=[]; db._v=2; }
+    // limpeza única v3: remove as categorias que vinham com o site (dono cria as próprias)
+    if(db._v!==3){ const SEED=['assinaturas','steam-offline','minecraft','fortnite','discord','redes-sociais']; db.categories=(db.categories||[]).filter(c=>!SEED.includes(c.id)); db._v=3; }
     // mescla novidades do padrão sem apagar o que o staff editou
     const d=defaultDB();
     d.categories.forEach(c=>{ if(!db.categories.find(x=>x.id===c.id)) db.categories.push(c); });

@@ -33,7 +33,7 @@
  <button onclick="staffLogout()">🚪 Sair</button>
 </aside>
 <main class="main">
- <header><h1 id="tabTitle">Dashboard</h1><button onclick="resetAll()">♻️ Restaurar padrão</button></header>
+ <header><h1 id="tabTitle">Dashboard</h1><div style="display:flex;gap:10px;align-items:center"><span id="syncBadge" style="font-size:13px;font-weight:700">🟡 Verificando banco…</span><button onclick="resetAll()">♻️ Restaurar padrão</button></div></header>
 
  <section id="t-dash" class="tab">
   <div class="cards"><div class="card"><small>Faturamento</small><b id="stRev">R$ 0</b></div>
@@ -56,14 +56,13 @@
   <label>Cidade PIX<input id="f-pixCity"></label>
   <label>URL confirmação automática (gateway/backend — vazio = conferência manual)<input id="f-autoUrl" placeholder="https://seu-servidor.com/verificar-pix"></label>
   <label>E-mail suporte<input id="f-supportEmail"></label>
-  <label>Telefone<input id="f-phone"></label>
   <label>Nota avaliação (ex 4,6)<input id="f-rating"></label>
   <label>Cor primária<input id="f-primary" type="color"></label>
   <label>Cor secundária<input id="f-secondary" type="color"></label>
   </div>
   <label>Título hero<input id="f-heroTitle"></label>
   <label>Subtítulo hero<input id="f-heroSub"></label>
-  <label>CNPJ / empresa<input id="f-cnpj"></label>
+
   <button class="primary" onclick="saveLoja()">💾 Salvar loja</button>
   <hr><h3>Senha do painel</h3>
   <label>Nova senha<input id="f-pass" placeholder="deixe vazio p/ manter"></label>

@@ -1,4 +1,10 @@
 .opencode/
+.env
+.env.local
 *.log
 .DS_Store
 Thumbs.db
+
+# scripts de manutencao do PC (nao pertencem a loja)
+Reparar-Windows.bat
+Reparar-Windows.ps1

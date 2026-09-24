@@ -1,16 +1,52 @@
 let DB = Store.load();
+Store.mode='staff';
 const BRL=v=>(+v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.add('hidden'),2400)}
+function syncBadge(){
+ const el=document.getElementById('syncBadge');
+ if(!el) return;
+ const on=Store.online;
+ el.textContent=on?'🟢 Banco conectado — salva para todos':'🟡 Modo local — configure o banco na Vercel';
+ el.style.color=on?'#22c55e':'#facc15';
+ el.title=on?'As alteracoes aparecem para todos os clientes':'Sem credenciais do banco: cada navegador ve apenas o que ele mesmo mudou';
+}
 function pass(){return localStorage.getItem('nexos_staff_pass')||'admin123'}
-function staffLogin(){if(document.getElementById('staffPass').value===pass()){localStorage.setItem('nexos_staff_auth','1');boot()}else toast('❌ Senha incorreta')}
+async function staffLogin(){
+ const senha=document.getElementById('staffPass').value;
+ const gate=document.getElementById('loginGate');
+ if(senha!==pass()){toast('❌ Senha incorreta');return}
+ gate.innerHTML='<p style="color:#9aa7c7">Conectando ao banco…</p>';
+ const h=await Store.setSenha(senha);
+ try{
+  const r=await Store.apiAuth(h);
+  if(r.ok===false){gate.innerHTML='';toast('❌ Senha não confere com o banco');buildGate();return}
+  // primeira senha: publica o catalogo atual no banco
+  if(r.first) await Store.pushRemote();
+  localStorage.setItem('nexos_staff_auth','1');
+  location.reload();
+ }catch(e){
+  // sem banco: funciona igual antes, so neste dispositivo
+  localStorage.setItem('nexos_staff_auth','1');
+  location.reload();
+ }
+}
+function buildGate(){
+ const gate=document.getElementById('loginGate');
+ if(!gate) return;
+ gate.innerHTML=`<div class="gate-box"><div class="logo">L <span>Staff</span></div>
+ <h2>Painel da Loja</h2><p>Acesso restrito à equipe.</p>
+ <input id="staffPass" type="password" placeholder="Senha">
+ <button onclick="staffLogin()">Entrar no painel</button>
+ <small><a href="index.html">← Voltar à loja</a></small></div>`;
+}
 function staffLogout(){localStorage.removeItem('nexos_staff_auth');location.reload()}
-function savePass(){const v=document.getElementById('f-pass').value.trim();if(v){localStorage.setItem('nexos_staff_pass',v);toast('🔑 Senha atualizada')} }
+async function savePass(){const v=document.getElementById('f-pass').value.trim();if(!v)return toast('⚠️ Digite a nova senha');if(v.length<4)return toast('⚠️ Mínimo 4 caracteres');localStorage.setItem('nexos_staff_pass',v);await Store.setSenha(v);await Store.pushRemote();toast('🔑 Senha atualizada e sincronizada')}
 function tab(name,el){document.querySelectorAll('.side button').forEach(b=>b.classList.remove('active'));if(el)el.classList.add('active');document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));document.getElementById('t-'+name).classList.remove('hidden');document.getElementById('tabTitle').textContent=el?el.textContent.replace(/[0-9]/g,'').trim():name;refresh()}
-function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'Legend').split(' ')[0]}
+function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();syncBadge();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'Legend').split(' ')[0]}
 function renderDash(){const paid=DB.orders.filter(o=>o.status!=='cancelado');const rev=paid.reduce((a,o)=>a+(+o.total||0),0);document.getElementById('stRev').textContent=BRL(rev);document.getElementById('stOrd').textContent=DB.orders.length;document.getElementById('stProd').textContent=DB.products.length;document.getElementById('stStock').textContent=DB.products.reduce((a,p)=>a+(+p.stock||0),0);document.getElementById('ordBadge').textContent=DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length?`(${DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length}!)`:(DB.orders.length?`(${DB.orders.length})`:'');document.getElementById('tickBadge').textContent=(DB.tickets||[]).filter(t=>t.status==='aberto').length?`(${(DB.tickets||[]).filter(t=>t.status==='aberto').length})`:'';
  document.getElementById('dashOrders').innerHTML=DB.orders.slice(0,5).map(o=>`<div class="row"><div class="grow"><b>${o.id}</b> · ${o.email}<br><small>${o.date} · ${o.pay} · ${o.status} · ${o.items.map(i=>i.q+'x '+i.name).join(', ')}</small></div><b>${BRL(o.total)}</b></div>`).join('')||'<p style="color:#9aa7c7">Nenhuma venda ainda. Faça um pedido teste na loja.</p>'}
-function renderLoja(){const s=DB.settings;const m={ 'f-storeName':s.storeName,'f-banner':s.banner,'f-discord':s.discord,'f-instagram':s.instagram,'f-whatsapp':s.whatsapp||'','f-pixKey':s.pixKey,'f-pixName':s.pixName,'f-pixCity':s.pixCity||'','f-autoUrl':s.autoConfirmUrl||'','f-supportEmail':s.supportEmail,'f-phone':s.phone,'f-rating':s.rating,'f-primary':s.primary,'f-secondary':s.secondary,'f-heroTitle':s.heroTitle,'f-heroSub':s.heroSub,'f-cnpj':s.cnpj};for(const k in m)document.getElementById(k).value=m[k]}
-function saveLoja(){const g=id=>document.getElementById(id).value.trim();DB.settings={...DB.settings,storeName:g('f-storeName'),banner:g('f-banner'),discord:g('f-discord'),instagram:g('f-instagram'),whatsapp:g('f-whatsapp'),pixKey:g('f-pixKey'),pixName:g('f-pixName'),pixCity:g('f-pixCity'),autoConfirmUrl:g('f-autoUrl'),supportEmail:g('f-supportEmail'),phone:g('f-phone'),rating:g('f-rating'),primary:g('f-primary'),secondary:g('f-secondary'),heroTitle:g('f-heroTitle'),heroSub:g('f-heroSub'),cnpj:g('f-cnpj')};Store.save(DB);toast('✅ Loja atualizada! Teste o Pix no checkout.')}
+function renderLoja(){const s=DB.settings;const m={ 'f-storeName':s.storeName,'f-banner':s.banner,'f-discord':s.discord,'f-instagram':s.instagram,'f-whatsapp':s.whatsapp||'','f-pixKey':s.pixKey,'f-pixName':s.pixName,'f-pixCity':s.pixCity||'','f-autoUrl':s.autoConfirmUrl||'','f-supportEmail':s.supportEmail,'f-rating':s.rating,'f-primary':s.primary,'f-secondary':s.secondary,'f-heroTitle':s.heroTitle,'f-heroSub':s.heroSub};for(const k in m){const el=document.getElementById(k);if(el)el.value=m[k]}}
+function saveLoja(){const g=id=>{const el=document.getElementById(id);return el?el.value.trim():''};DB.settings={...DB.settings,storeName:g('f-storeName'),banner:g('f-banner'),discord:g('f-discord'),instagram:g('f-instagram'),whatsapp:g('f-whatsapp'),pixKey:g('f-pixKey'),pixName:g('f-pixName'),pixCity:g('f-pixCity'),autoConfirmUrl:g('f-autoUrl'),supportEmail:g('f-supportEmail'),rating:g('f-rating'),primary:g('f-primary'),secondary:g('f-secondary'),heroTitle:g('f-heroTitle'),heroSub:g('f-heroSub')};Store.save(DB);toast('✅ Loja atualizada!')}
 function renderCats(){document.getElementById('catList').innerHTML=DB.categories.map(c=>{const n=DB.products.filter(p=>p.cat===c.id).length;return `<div class="row"><span style="font-size:24px">${c.icon}</span><div class="grow"><b>${c.label}</b> <span class="pill">${c.id}</span> <span class="pill">${n} produtos</span></div><button onclick="delCat('${c.id}')">🗑️</button></div>`}).join('')}
 function addCat(){const l=document.getElementById('nc-label').value.trim(),ic=document.getElementById('nc-icon').value.trim()||'📦';if(!l)return toast('⚠️ Nome obrigatório');const id=l.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-');DB.categories.push({id,label:l,icon:ic});Store.save(DB);refresh();toast('✅ Categoria criada')}
 function delCat(id){if(!confirm('Excluir categoria? Produtos dela ficarão sem categoria.'))return;DB.categories=DB.categories.filter(c=>c.id!==id);Store.save(DB);refresh()}
@@ -50,6 +86,23 @@ function wdStatus(i,s){DB.withdrawals[i].status=s;Store.save(DB);refresh()}
 function saveComm(){DB.commissions={steam:+document.getElementById('cm-steam').value||0,assinaturas:+document.getElementById('cm-ass').value||0,outros:+document.getElementById('cm-out').value||0};Store.save(DB);toast('✅ Comissões salvas')}
 function exportJSON(){const b=new Blob([JSON.stringify(Store.load(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='legend-backup.json';a.click()}
 function importJSON(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{Store.save(JSON.parse(r.result));refresh();toast('✅ Backup importado')}catch(e){toast('❌ Arquivo inválido')}};r.readAsText(f)}
-function resetAll(){if(!confirm('Restaurar tudo para o padrão?'))return;Store.reset();refresh();toast('♻️ Restaurado')}
-function boot(){if(localStorage.getItem('nexos_staff_auth')!=='1'){document.getElementById('loginGate').classList.remove('hidden');document.getElementById('panel').classList.add('hidden');return}document.getElementById('loginGate').classList.add('hidden');document.getElementById('panel').classList.remove('hidden');refresh()}
+function resetAll(){if(!confirm('Restaurar tudo para o padrão?'))return;Store.reset();Store.pushRemote();refresh();toast('♻️ Restaurado')}
+async function boot(){
+ buildGate();
+ if(localStorage.getItem('nexos_staff_auth')!=='1'){
+  document.getElementById('loginGate').classList.remove('hidden');
+  document.getElementById('panel').classList.add('hidden');
+  // ja tenta conectar para mostrar o estado do banco no login
+  Store.hydrate().then(()=>{});
+  return;
+ }
+ document.getElementById('loginGate').classList.add('hidden');
+ document.getElementById('panel').classList.remove('hidden');
+ refresh();
+ const okSync=await Store.hydrate();
+ if(okSync){ DB=Store.load(); refresh(); }
+ else if(!Store.online) toast('🟡 Sem banco conectado: salvando só neste navegador');
+ // atualiza sozinho de tempos em tempos (outro staff pode ter mudado algo)
+ setInterval(async()=>{ if(document.hidden) return; await Store.hydrate(); refresh(); },20000);
+}
 boot();

@@ -9,8 +9,8 @@ function defaultDB(){ return {
   instagram:'https://www.instagram.com/nexossystem/',
   whatsapp:'', pixKey:'seu-pix@legendstore.site', pixName:'LEGEND STORE', pixCity:'FORTALEZA',
   autoConfirmUrl:'',
-  supportEmail:'suporte@legendstore.site', phone:'(85) 98887-2126',
-  cnpj:'GLAZUL SERVICOS DIGITAIS LTDA — CNPJ 68.712.202/0001-08',
+  supportEmail:'suporte@legendstore.site', phone:'',
+  cnpj:'',
   primary:'#7c5cff', secondary:'#00d4ff',
   heroTitle:'Bem-vindo(a) à',
   heroSub:'Produtos digitais selecionados, pagamento seguro e entrega sem enrolação.',
@@ -43,6 +43,9 @@ const Store = {
     if(db.settings.pixName==='NEXOS SYSTEM') db.settings.pixName='LEGEND STORE';
     if(db.settings.pixKey==='seu-pix@nexosystem.site') db.settings.pixKey='seu-pix@legendstore.site';
     if(db.settings.supportEmail==='suporte@nexosystem.site') db.settings.supportEmail='suporte@legendstore.site';
+    // remove dados da empresa que ainda venham do padrão antigo
+    if(db.settings.phone==='(85) 98887-2126') db.settings.phone='';
+    if(typeof db.settings.cnpj==='string'&&db.settings.cnpj.includes('68.712.202')) db.settings.cnpj='';
     if(db.coupons.find(c=>c.code==='NEXOS10')&&!db.coupons.find(c=>c.code==='LEGEND10')) db.coupons.find(c=>c.code==='NEXOS10').code='LEGEND10';
     // migração v2: garante tabelas novas
     db.users=db.users||[]; db.tickets=db.tickets||[]; db.withdrawals=db.withdrawals||[]; db.clicks=db.clicks||[];
@@ -64,9 +67,96 @@ const Store = {
   }catch(e){}
   const d=defaultDB(); localStorage.setItem(DB_KEY,JSON.stringify(d)); return d;
  },
- save(db){ localStorage.setItem(DB_KEY,JSON.stringify(db)); },
+ save(db){ localStorage.setItem(DB_KEY,JSON.stringify(db)); if(Store.mode==='staff') Store.pushRemote(); },
  reset(){ localStorage.removeItem(DB_KEY); return this.load(); }
 };
+
+// ===== BACKEND COMPARTILHADO (Vercel + Upstash) =====
+// Quando configurado, tudo que o staff muda no painel passa a valer para
+// todos os clientes, em qualquer dispositivo. Sem configuracao, continua
+// funcionando com localStorage (modo offline).
+const SITE_ID='legend';
+const API='/api/store';
+const PUB='/api/public';
+let remoteOnline=false, pushTimer=null, inFlight=false, queued=false;
+
+async function sha256hex(text){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function hashSenha(senha){ return await sha256hex(SITE_ID+'::'+senha); }
+function passHashSalvo(){ return localStorage.getItem(DB_KEY+'_hash')||''; }
+
+Object.assign(Store,{
+ mode:'client',          // 'staff' faz o save() subir para o banco
+ get online(){ return remoteOnline; },
+
+ async apiGet(){
+  const r=await fetch(API+'?site='+SITE_ID,{cache:'no-store'});
+  const j=await r.json();
+  if(!r.ok||!j.ok) throw new Error(j.error||('http '+r.status));
+  return j.data;
+ },
+ async apiPut(data,passHash){
+  const r=await fetch(API+'?site='+SITE_ID,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({passHash,data})});
+  const j=await r.json();
+  if(!r.ok||!j.ok) throw new Error(j.error||('http '+r.status));
+  return j;
+ },
+ async apiAuth(passHash){
+  const r=await fetch(API+'?site='+SITE_ID,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passHash})});
+  const j=await r.json();
+  if(!r.ok) throw new Error(j.error||('http '+r.status));
+  return j;
+ },
+ async pub(body){
+  const r=await fetch(PUB+'?site='+SITE_ID,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!r.ok||!j.ok) throw new Error(j.error||('http '+r.status));
+  return j;
+ },
+
+ // baixa a versao do servidor (fonte da verdade) para o navegador
+ async hydrate(){
+  try{
+   const remoto=await this.apiGet();
+   remoteOnline=true;
+   if(remoto&&Array.isArray(remoto.products)){
+    localStorage.setItem(DB_KEY,JSON.stringify(remoto));
+    localStorage.setItem(DB_KEY+'_sync','1');
+   }
+   return true;
+  }catch(e){ remoteOnline=false; return false; }
+ },
+
+ // sobe o catalogo/pedidos do painel para o servidor
+ async pushRemote(){
+  if(remoteOnline===false) return false;
+  const passHash=passHashSalvo();
+  if(!passHash) return false;
+  if(inFlight){ queued=true; return false; }
+  inFlight=true;
+  try{
+   const db=Store.load();
+   delete db.passHash;
+   await this.apiPut(db,passHash);
+   remoteOnline=true;
+  }catch(e){
+   if(/Senha incorreta/.test(e.message||'')) remoteOnline=false;
+  }finally{
+   inFlight=false;
+   if(queued){ queued=false; setTimeout(()=>Store.pushRemote(),1200); }
+  }
+  return true;
+ },
+ pushSoon(){ if(remoteOnline) setTimeout(()=>Store.pushRemote(),700); },
+
+ async setSenha(senha){
+  const h=await hashSenha(senha);
+  localStorage.setItem(DB_KEY+'_hash',h);
+  return h;
+ }
+});
 // === PIX BR Code real (EMVCo) ===
 function pixCRC16(s){let crc=0xFFFF;for(let i=0;i<s.length;i++){crc^=s.charCodeAt(i)<<8;for(let j=0;j<8;j++){crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);crc&=0xFFFF}}return crc.toString(16).toUpperCase().padStart(4,'0')}
 function tlv(id,v){return id+String(v.length).padStart(2,'0')+v}

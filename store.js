@@ -67,7 +67,7 @@ const Store = {
   }catch(e){}
   const d=defaultDB(); localStorage.setItem(DB_KEY,JSON.stringify(d)); return d;
  },
- save(db){ localStorage.setItem(DB_KEY,JSON.stringify(db)); if(Store.mode==='staff') Store.pushRemote(); },
+ save(db){ if(Store.mode==='staff'){ db._rev=(db._rev||0)+1; db._dirty=true; } localStorage.setItem(DB_KEY,JSON.stringify(db)); if(Store.mode==='staff') Store.pushSoon(); },
  reset(){ localStorage.removeItem(DB_KEY); return this.load(); }
 };
 
@@ -79,6 +79,7 @@ const SITE_ID='legend';
 const API='/api/store';
 const PUB='/api/public';
 let remoteOnline=false, pushTimer=null, inFlight=false, queued=false;
+let pushErro='', pendentes=0, ultimoAviso='';
 
 async function sha256hex(text){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
@@ -87,6 +88,33 @@ async function sha256hex(text){
 async function hashSenha(senha){ return await sha256hex(SITE_ID+'::'+senha); }
 function passHashSalvo(){ return localStorage.getItem(DB_KEY+'_hash')||''; }
 
+// ---- controle de versao: nada se perde se o envio falhar ----
+function temPendente(){ const db=Store.load(); return !!(db&&db._dirty); }
+function avisar(msg){ if(ultimoAviso===msg) return; ultimoAviso=msg; try{ if(typeof toast==='function') toast(msg); }catch(e){} }
+// junta duas listas pelo id, sem apagar o que existe so de um lado
+function unirPorId(a,b){
+ const mapa=new Map();
+ for(const x of (Array.isArray(a)?a:[])) if(x&&x.id) mapa.set(x.id,x);
+ for(const x of (Array.isArray(b)?b:[])) if(x&&x.id) mapa.set(x.id,x); // remoto tem prioridade
+ return [...mapa.values()];
+}
+// funde navegador e banco preservando o catalogo dos dois lados
+function fundir(local,remoto){
+ const out=Object.assign({},local);
+ if(remoto&&typeof remoto==='object'){
+  if(remoto.settings) out.settings=remoto.settings;
+  if(remoto.commissions) out.commissions=remoto.commissions;
+  out.categories=unirPorId(local&&local.categories,remoto.categories);
+  out.products=unirPorId(local&&local.products,remoto.products);
+  for(const t of ['orders','users','tickets','coupons','reviews','clicks','withdrawals']){
+   if(Array.isArray(remoto[t])) out[t]=remoto[t];
+  }
+  if(remoto._v!==undefined) out._v=remoto._v;
+ }
+ out._rev=Math.max((local&&local._rev)||0,(remoto&&remoto._rev)||0);
+ out._dirty=!!(local&&local._dirty);
+ return out;
+}
 Object.assign(Store,{
  mode:'client',          // 'staff' faz o save() subir para o banco
  get online(){ return remoteOnline; },
@@ -150,41 +178,49 @@ Object.assign(Store,{
  },
 
  // baixa a versao do servidor (fonte da verdade) para o navegador
- async hydrate(){
-  try{
-   let remoto=await this.apiGet();
-   // o servidor pode devolver objeto ou texto JSON (ex.: bancos antigos)
-   if(typeof remoto==='string'){ try{remoto=JSON.parse(remoto)}catch(e){remoto=null} }
-   remoteOnline=true;
-   if(remoto&&typeof remoto==='object'&&Array.isArray(remoto.products)){
-    localStorage.setItem(DB_KEY,JSON.stringify(remoto));
-    localStorage.setItem(DB_KEY+'_sync','1');
-   }
+  // funde o banco com o navegador. NUNCA apaga o que existe so aqui,
+  // nem quando o envio das novidades falhou.
+  async hydrate(){
+   let remoto=null;
+   try{
+    remoto=await this.apiGet();
+    if(typeof remoto==='string'){ try{remoto=JSON.parse(remoto)}catch(e){remoto=null} }
+    remoteOnline=true;
+   }catch(e){ remoteOnline=false; return false; }
+   try{
+    const fundido=fundir(Store.load(),remoto);
+    localStorage.setItem(DB_KEY,JSON.stringify(fundido));
+    if(fundido._dirty&&this.mode==='staff') this.pushRemote();
+   }catch(e){}
    return true;
-  }catch(e){ remoteOnline=false; return false; }
- },
+  },
 
  // sobe o catalogo/pedidos do painel para o servidor
  async pushRemote(){
   if(remoteOnline===false) return false;
-  const passHash=passHashSalvo();
-  if(!passHash) return false;
+  if(!passHashSalvo()){ pendentes++; pushErro='Senha nao registrada no banco'; avisar('⚠️ Saia e entre no painel para registrar sua senha no banco'); return false; }
   if(inFlight){ queued=true; return false; }
   inFlight=true;
   try{
    const db=Store.load();
    delete db.passHash;
-   await this.apiPut(db,passHash);
-   remoteOnline=true;
+   await this.apiPut(db,passHashSalvo());
+   const depois=Store.load();
+   depois._dirty=false; depois._syncedRev=depois._rev||0;
+   localStorage.setItem(DB_KEY,JSON.stringify(depois));
+   remoteOnline=true; pushErro=''; pendentes=0;
   }catch(e){
-   if(/Senha incorreta/.test(e.message||'')) remoteOnline=false;
+   pushErro=String(e&&e.message?e.message:e);
+   pendentes++;
+   if(/Senha incorreta/.test(pushErro)){ remoteOnline=false; avisar('❌ Senha do painel nao bate com o banco. Troque em Loja/PIX.'); }
+   else avisar('⚠️ Nao consegui enviar: '+pushErro);
   }finally{
    inFlight=false;
    if(queued){ queued=false; setTimeout(()=>Store.pushRemote(),1200); }
   }
-  return true;
+  return !pushErro;
  },
- pushSoon(){ if(remoteOnline) setTimeout(()=>Store.pushRemote(),700); },
+ pushSoon(){ setTimeout(()=>Store.pushRemote(),400); },
 
  async setSenha(senha){
   const h=await hashSenha(senha);

@@ -6,19 +6,30 @@ function semHash(){ return !localStorage.getItem('nexos_db_v1_hash'); }
 function syncBadge(){
  const el=document.getElementById('syncBadge');
  if(!el) return;
- if(Store.online&&semHash()){
-  el.textContent='🟡 Banco ok — saia e entre de novo para registrar a senha';
-  el.style.color='#facc15';
-  el.title='O banco funciona, mas este painel ainda nao foi autenticado nele. Clique em Sair e entre novamente.';
- }else if(Store.online){
-  el.textContent='🟢 Banco conectado — salva para todos';
-  el.style.color='#22c55e';
-  el.title='As alteracoes aparecem para todos os clientes';
+ const sujo=!!(DB&&DB._dirty);
+ if(!Store.online){
+  el.innerHTML='🔴 <a href="#" onclick="forcarSync();return false" style="color:#ef4444;font-weight:700">Sem banco — clique para tentar de novo</a>';
+  el.title='Sem credenciais do banco na Vercel. As mudancas ficam so neste navegador.';
+ }else if(sujo){
+  el.innerHTML='🟡 <a href="#" onclick="forcarSync();return false" style="color:#facc15;font-weight:700">Enviando… (se nao sair, clique)</a>';
+  el.title='Voce tem alteracoes que ainda nao foram para o banco. Nada sera apagado.';
+ }else if(semHash()){
+  el.innerHTML='🟡 <a href="#" onclick="forcarSync();return false" style="color:#facc15;font-weight:700">Banco ok — clique para registrar a senha</a>';
+  el.title='Clique para gravar sua senha no banco. Ate la, as mudancas ficam so aqui.';
  }else{
-  el.textContent='🟡 Sem banco — salvando so neste navegador';
-  el.style.color='#facc15';
-  el.title='Sem credenciais do banco na Vercel.';
+  el.textContent='🟢 Sincronizado com todos';
+  el.style.color='#22c55e';
+  el.title='O que voce mexe aparece para todos os clientes, em qualquer dispositivo.';
  }
+}
+async function forcarSync(){
+ toast('⏳ Sincronizando…');
+ await Store.hydrate();
+ DB=Store.load();
+ await Store.pushRemote();
+ DB=Store.load();
+ refresh();
+ if(Store.ultimoErro) toast('❌ '+Store.ultimoErro); else toast('✅ Sincronizado!');
 }
 function pass(){return localStorage.getItem('nexos_staff_pass')||'admin123'}
 async function staffLogin(){
@@ -168,10 +179,9 @@ async function boot(){
  document.getElementById('panel').classList.remove('hidden');
  refresh();
  const okSync=await Store.hydrate();
- if(okSync){ DB=Store.load(); refresh(); }
- else toast('🟡 Sem banco conectado: salvando só neste navegador');
- if(okSync&&semHash()) setTimeout(()=>toast('Saia e entre novamente no painel para registrar sua senha no banco'),900);
+ DB=Store.load(); refresh();
+ if(okSync&&semHash()) setTimeout(()=>toast('Clique no selo amarelo no topo para registrar sua senha no banco'),900);
  // atualiza sozinho de tempos em tempos (outro staff pode ter mudado algo)
- setInterval(async()=>{ if(document.hidden) return; await Store.hydrate(); refresh(); },20000);
+ setInterval(async()=>{ if(document.hidden) return; await Store.hydrate(); DB=Store.load(); refresh(); },20000);
 }
 boot();

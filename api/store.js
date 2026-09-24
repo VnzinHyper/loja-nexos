@@ -107,6 +107,8 @@ export default async function handler(req,res){
       if(current.passHash&&current.passHash!==passHash) return bad(res,403,'Senha incorreta');
       for(const t of TABLES) if(data[t]!==undefined) current[t]=data[t];
       if(data._v!==undefined) current._v=data._v;
+      if(data._rev!==undefined) current._rev=Number(data._rev)||0;
+      current._syncedRev=current._rev;
       current.passHash=passHash;
       current.updatedAt=Date.now();
       await redis.set(current);

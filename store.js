@@ -119,9 +119,11 @@ Object.assign(Store,{
  // baixa a versao do servidor (fonte da verdade) para o navegador
  async hydrate(){
   try{
-   const remoto=await this.apiGet();
+   let remoto=await this.apiGet();
+   // o servidor pode devolver objeto ou texto JSON (ex.: bancos antigos)
+   if(typeof remoto==='string'){ try{remoto=JSON.parse(remoto)}catch(e){remoto=null} }
    remoteOnline=true;
-   if(remoto&&Array.isArray(remoto.products)){
+   if(remoto&&typeof remoto==='object'&&Array.isArray(remoto.products)){
     localStorage.setItem(DB_KEY,JSON.stringify(remoto));
     localStorage.setItem(DB_KEY+'_sync','1');
    }

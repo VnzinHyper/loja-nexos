@@ -23,6 +23,44 @@ function syncBadge(){
   el.title='O que voce mexe aparece para todos os clientes, em qualquer dispositivo.';
  }
 }
+// ---------- diagnostico: mostra exatamente onde a conexao falha ----------
+async function diag(){
+ const box=document.getElementById('diagBox');
+ if(!box) return;
+ box.classList.remove('hidden');
+ const L=[];
+ L.push('=== DIAGNÓSTICO ===');
+ L.push('página : '+location.href);
+ L.push('protocolo: '+location.protocol);
+ L.push('API    : '+(typeof API!=='undefined'?API:'(indefinida)'));
+ L.push('store.js carregado: '+(typeof Store!=='undefined'?'sim, v'+Store._v:'NAO'));
+ L.push('hash senha no PC: '+(passHashSalvo()?'SIM':'nao'));
+ L.push('');
+ L.push('testando…');
+ box.textContent=L.join('\n');
+ try{
+  const url=(typeof API!=='undefined'?API:'/api/store')+'?site='+(typeof SITE_ID!=='undefined'?SITE_ID:'legend');
+  const t0=Date.now();
+  const r=await fetch(url,{cache:'no-store'});
+  const txt=await r.text();
+  L.push('resposta: HTTP '+r.status+' em '+(Date.now()-t0)+'ms');
+  L.push('corpo   : '+txt.slice(0,220));
+  let n=null; try{const j=JSON.parse(txt);n=j&&j.data?(j.data.categories||[]).length:null}catch(e){}
+  if(n!==null) L.push('categorias no banco: '+n);
+ }catch(e){
+  L.push('ERRO DE REDE: '+(e&&e.message?e.message:e));
+  L.push('');
+  L.push('Se apareceu "Failed to fetch" ou "NetworkError":');
+  L.push('  1) o painel pode estar aberto pelo arquivo local (file://)');
+  L.push('  2) bloqueador de anuncios/privacidade do navegador pode estar');
+  L.push('     barrando. No Brave, desative os escudos para este site.');
+  L.push('  3) falta rede ou ha VPN/extensao bloqueando');
+ }
+ L.push('');
+ L.push('Store.online = '+(typeof Store!=='undefined'?Store.online:'?'));
+ L.push('ultimoErro  = '+(typeof Store!=='undefined'?(Store.ultimoErro||'(nenhum)'):'?'));
+ box.textContent=L.join('\n');
+}
 async function forcarSync(){
  toast('⏳ Sincronizando…');
  await Store.hydrate();
@@ -68,8 +106,32 @@ function tab(name,el){document.querySelectorAll('.side button').forEach(b=>b.cla
 function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();renderProofs();syncBadge();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'Legend').split(' ')[0]}
 function renderDash(){const paid=DB.orders.filter(o=>o.status!=='cancelado');const rev=paid.reduce((a,o)=>a+(+o.total||0),0);document.getElementById('stRev').textContent=BRL(rev);document.getElementById('stOrd').textContent=DB.orders.length;document.getElementById('stProd').textContent=DB.products.length;document.getElementById('stStock').textContent=DB.products.reduce((a,p)=>a+(+p.stock||0),0);document.getElementById('ordBadge').textContent=DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length?`(${DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length}!)`:(DB.orders.length?`(${DB.orders.length})`:'');document.getElementById('tickBadge').textContent=(DB.tickets||[]).filter(t=>t.status==='aberto').length?`(${(DB.tickets||[]).filter(t=>t.status==='aberto').length})`:'';
  document.getElementById('dashOrders').innerHTML=DB.orders.slice(0,5).map(o=>`<div class="row"><div class="grow"><b>${o.id}</b> · ${o.email}<br><small>${o.date} · ${o.pay} · ${o.status} · ${o.items.map(i=>i.q+'x '+i.name).join(', ')}</small></div><b>${BRL(o.total)}</b></div>`).join('')||'<p style="color:#9aa7c7">Nenhuma venda ainda. Faça um pedido teste na loja.</p>'}
-function renderLoja(){const s=DB.settings;const m={ 'f-storeName':s.storeName,'f-banner':s.banner,'f-discord':s.discord,'f-instagram':s.instagram,'f-whatsapp':s.whatsapp||'','f-pixKey':s.pixKey,'f-pixName':s.pixName,'f-pixCity':s.pixCity||'','f-autoUrl':s.autoConfirmUrl||'','f-supportEmail':s.supportEmail,'f-rating':s.rating,'f-primary':s.primary,'f-secondary':s.secondary,'f-heroTitle':s.heroTitle,'f-heroSub':s.heroSub};for(const k in m){const el=document.getElementById(k);if(el)el.value=m[k]}}
-function saveLoja(){const g=id=>{const el=document.getElementById(id);return el?el.value.trim():''};DB.settings={...DB.settings,storeName:g('f-storeName'),banner:g('f-banner'),discord:g('f-discord'),instagram:g('f-instagram'),whatsapp:g('f-whatsapp'),pixKey:g('f-pixKey'),pixName:g('f-pixName'),pixCity:g('f-pixCity'),autoConfirmUrl:g('f-autoUrl'),supportEmail:g('f-supportEmail'),rating:g('f-rating'),primary:g('f-primary'),secondary:g('f-secondary'),heroTitle:g('f-heroTitle'),heroSub:g('f-heroSub')};Store.save(DB);toast('✅ Loja atualizada!')}
+// ---------- Loja / PIX ----------
+// le e grava TUDO que estiver com id comecando em "f-", sem lista fixa
+// (assim novos campos aparecem sozinhos e nada se perde)
+function camposLoja(){
+ const s=DB.settings||{};
+ const ids=[...document.querySelectorAll('input[id^="f-"],select[id^="f-"],textarea[id^="f-"]')].map(el=>el.id);
+ return {ids,s};
+}
+function renderLoja(){
+ const {ids,s}=camposLoja();
+ for(const id of ids){ if(id==='f-pass') continue; const el=document.getElementById(id); if(!el) continue;
+  const chave=id.slice(2);
+  el.value=(s[chave]!==undefined&&s[chave]!==null)?s[chave]:'';
+ }
+}
+function saveLoja(){
+ const {ids,s}=camposLoja();
+ const novo=Object.assign({},s);
+ for(const id of ids){ if(id==='f-pass') continue; const el=document.getElementById(id); if(!el) continue;
+  const chave=id.slice(2);
+  novo[chave]=(el.type==='checkbox')?el.checked:el.value.trim();
+ }
+ DB.settings=novo;
+ Store.save(DB);
+ toast('✅ Loja atualizada!');
+}
 function renderCats(){document.getElementById('catList').innerHTML=DB.categories.map(c=>{const n=DB.products.filter(p=>p.cat===c.id).length;return `<div class="row"><span style="font-size:24px">${c.icon}</span><div class="grow"><b>${c.label}</b> <span class="pill">${c.id}</span> <span class="pill">${n} produtos</span></div><button onclick="delCat('${c.id}')">🗑️</button></div>`}).join('')}
 function addCat(){const l=document.getElementById('nc-label').value.trim(),ic=document.getElementById('nc-icon').value.trim()||'📦';if(!l)return toast('⚠️ Nome obrigatório');const id=l.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-');DB.categories.push({id,label:l,icon:ic});Store.save(DB);refresh();toast('✅ Categoria criada')}
 function delCat(id){if(!confirm('Excluir categoria? Produtos dela ficarão sem categoria.'))return;DB.categories=DB.categories.filter(c=>c.id!==id);Store.save(DB);refresh()}

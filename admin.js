@@ -165,7 +165,38 @@ function saveLoja(){
  Store.save(DB);
  toast('✅ Loja atualizada!');
 }
-function renderCats(){document.getElementById('catList').innerHTML=DB.categories.map(c=>{const n=DB.products.filter(p=>p.cat===c.id).length;return `<div class="row"><span style="font-size:24px">${c.icon}</span><div class="grow"><b>${c.label}</b> <span class="pill">${c.id}</span> <span class="pill">${n} produtos</span></div><button onclick="delCat('${c.id}')">🗑️</button></div>`}).join('')}
+function renderCats(){
+ const box=$('catList'); if(!box) return;
+ if(!DB.categories.length){box.innerHTML='<p style="color:#9aa7c7">Nenhuma categoria ainda. Crie a primeira abaixo.</p>';return;}
+ box.innerHTML=DB.categories.map((c,idx)=>{
+  const n=DB.products.filter(p=>p.cat===c.id).length;
+  const L=String(c.label||'').replace(/"/g,'&quot;').replace(/</g,'').replace(/>/g,'');
+  const I=String(c.icon||'').replace(/"/g,'&quot;');
+  const M=String(c.img||'').replace(/"/g,'&quot;');
+  return '<div class="row" style="align-items:flex-start">'
+   +'<div style="flex:1;min-width:250px">'
+   +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:7px"><b>'+(I||'📦')+' '+L+'</b><span class="pill">'+n+' produtos</span></div>'
+   +'<input id="ci-'+idx+'" value="'+M+'" placeholder="URL da capa (vazio = usa a imagem do 1º produto)" style="margin-bottom:6px">'
+   +'<div style="display:flex;gap:6px">'
+   +'<input id="cl-'+idx+'" value="'+L+'" placeholder="Nome">'
+   +'<input id="ce-'+idx+'" value="'+I+'" placeholder="Ícone" style="max-width:80px">'
+   +'</div></div>'
+   +'<button onclick="saveCat('+idx+')">💾 Salvar</button>'
+   +'<button onclick="delCat(\''+c.id+'\')">🗑️</button>'
+   +'</div>';
+ }).join('');
+}
+function saveCat(i){
+ const l=$('cl-'+i).value.trim();
+ if(!l) return toast('⚠️ Nome obrigatório');
+ const c=DB.categories[i];
+ c.label=l;
+ c.icon=$('ce-'+i).value.trim()||'📦';
+ c.img=$('ci-'+i).value.trim();
+ Store.save(DB);
+ refresh();
+ toast('✅ Categoria atualizada — já aparece na loja');
+}
 function addCat(){const l=document.getElementById('nc-label').value.trim(),ic=document.getElementById('nc-icon').value.trim()||'📦';if(!l)return toast('⚠️ Nome obrigatório');const id=l.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-');DB.categories.push({id,label:l,icon:ic});Store.save(DB);refresh();toast('✅ Categoria criada')}
 function delCat(id){if(!confirm('Excluir categoria? Produtos dela ficarão sem categoria.'))return;DB.categories=DB.categories.filter(c=>c.id!==id);Store.save(DB);refresh()}
 function renderProds(){const q=(document.getElementById('prodSearch').value||'').toLowerCase();const sel=document.getElementById('pf-cat');sel.innerHTML=DB.categories.map(c=>`<option value="${c.id}">${c.label}</option>`).join('');

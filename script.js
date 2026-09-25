@@ -13,30 +13,80 @@ function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hidden'
 (function(){const u=new URLSearchParams(location.search);const ref=u.get('ref');if(ref){localStorage.setItem('nexos_ref',ref);}})();
 // ---------- render loja ----------
 function applySettings(){
- document.title=S().storeName+' — Loja de Produtos Digitais';
- document.querySelectorAll('.js-store').forEach(e=>e.innerHTML=S().storeName.replace(' ',' <b>'));
- document.querySelectorAll('.js-discord').forEach(a=>a.href=S().discord);
- document.querySelectorAll('.js-insta').forEach(a=>a.href=S().instagram);
- document.querySelectorAll('.js-email').forEach(e=>e.textContent=S().supportEmail||'suporte@legendstore.site');
- const tb=document.querySelector('.topbar'); if(tb) tb.innerHTML=`${S().banner} <a class="js-discord" href="${S().discord}" target="_blank">Entrar no Discord →</a>`;
- const r=document.querySelector(':root'); if(r){r.style.setProperty('--acc',S().primary);r.style.setProperty('--acc2',S().secondary)}
+ const s=S();
+ document.title=s.storeName+' — Games originais, preço brutal';
+ document.querySelectorAll('.js-store').forEach(e=>e.textContent=s.storeName);
+ document.querySelectorAll('.js-discord').forEach(a=>a.href=s.discord);
+ document.querySelectorAll('.js-insta').forEach(a=>a.href=s.instagram);
+ document.querySelectorAll('.js-email').forEach(e=>e.textContent=s.supportEmail||'suporte@legendstore.site');
+ const tb=$('tbBanner'); if(tb) tb.textContent=s.banner;
+ const fc=$('footContato'); if(fc) fc.innerHTML=(s.supportEmail?('<p>📧 '+esc(s.supportEmail)+'</p>'):'')+(s.phone?('<p>📞 '+esc(s.phone)+'</p>'):'')+'<p>💬 Segunda a sexta, das 9h às 18h</p>';
+ const rb=document.querySelector('.rating-badge'); if(rb) rb.innerHTML='⭐ Nota <b>'+esc(s.rating||'4,6')+' de 5</b> · <a href="#avaliacoes">Ver avaliações</a>';
+ const r=document.querySelector(':root');
+ if(r&&s.primary){r.style.setProperty('--primary',s.primary);r.style.setProperty('--primary2',s.secondary||s.primary);}
  const u=me(); const btn=$('btnAccount'); if(btn) btn.textContent=u?('👤 '+u.email.split('@')[0]):'👤 Entrar';
 }
+function esc(s){const d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML}
 function catLabel(id){const c=CATS.find(x=>x.id===id);return c?c.label:id}
-function cardHTML(p){const esgotado=(p.stock||0)<=0;return `<div class="prod" onclick="verProduto('${p.id}')"><div class="prod-img">${p.img?`<img src="${p.img}" loading="lazy" onerror="this.remove()">`:''}<span style="position:absolute">${p.img?'':(p.emoji||'📦')}</span><span class="prod-badge">${esgotado?'❌ ESGOTADO':'⚡ '+(p.delivery||'Automática')}</span></div><div class="prod-body"><div class="prod-cat">${catLabel(p.cat)}</div><h3>${p.name}</h3><div class="prod-stock">${esgotado?'Sem estoque':'● '+p.stock+' em estoque'}</div><div class="prod-price"><s>${BRL(p.old)}</s><b>${BRL(p.price)}</b></div><button ${esgotado?'disabled style="opacity:.4"':''} onclick="event.stopPropagation();addToCart('${p.id}')">${esgotado?'Esgotado':'Adicionar 🛒'}</button></div></div>`}
+function cardHTML(p){
+ const sem=(p.stock||0)<=0;
+ return '<div class="prod" onclick="verProduto(&quot;'+p.id+'&quot;)">'
+  +'<div class="prod-img">'
+  +(p.img?'<img src="'+p.img+'" loading="lazy" alt="'+esc(p.name)+'" onerror="this.remove()">':'<span>'+(p.emoji||'📦')+'</span>')
+  +'<span class="prod-badge">'+(sem?'ESGOTADO':esc(p.delivery||'Automática'))+'</span></div>'
+  +'<div class="prod-body">'
+  +'<div class="prod-cat">'+esc(catLabel(p.cat))+'</div>'
+  +'<h3>'+esc(p.name)+'</h3>'
+  +'<div class="prod-stock">'+(sem?'Sem estoque':'● '+p.stock+' em estoque')+'</div>'
+  +'<div class="prod-price">'+(p.old>p.price?'<s>'+BRL(p.old)+'</s>':'')+'<b>'+BRL(p.price)+'</b></div>'
+  +'<button '+(sem?'disabled':'')+' onclick="event.stopPropagation();addToCart(&quot;'+p.id+'&quot;,true)">'+(sem?'Indisponível':'Comprar agora')+'</button>'
+  +'</div></div>';
+}
+function catCardHTML(c){
+ const n=PRODUCTS.filter(p=>p.cat===c.id).length;
+ const img=c.img||(PRODUCTS.find(p=>p.cat===c.id)||{}).img;
+ return '<a class="cat-card" href="#" onclick="verCategoria(&quot;'+c.id+'&quot;);return false">'
+  +(img?'<img src="'+img+'" alt="'+esc(c.label)+'" loading="lazy" onerror="this.remove()">':'')
+  +'<div class="veil"></div><div class="cap"><b>'+(c.icon||'📦')+' '+esc(c.label)+'</b><span>'+n+' '+(n===1?'produto':'produtos')+'</span></div></a>';
+}
 function renderAll(){
  DB=Store.load();PRODUCTS=DB.products;CATS=DB.categories;applySettings();
  const hero=$('heroCard');
- if(hero){const feat=PRODUCTS.find(p=>p.stock>0)||PRODUCTS[0];
-  hero.innerHTML=feat?`<div class="hero-card-tag">🔥 MAIS VENDIDO</div>${feat.img?`<img src="${feat.img}" alt="" onerror="this.style.display='none'">`:`<div style="font-size:64px">${feat.emoji||'📦'}</div>`}<h3>${feat.name}</h3><p>${catLabel(feat.cat)} · Entrega ${feat.delivery||'Automática'}</p><div class="hero-price"><s>${BRL(feat.old)}</s> <b>${BRL(feat.price)}</b></div><button class="btn-primary full" onclick="addToCart('${feat.id}')">Adicionar ao carrinho</button>`:`<div class="hero-card-tag">✨ EM BREVE</div><div style="font-size:64px">📦</div><h3>Catálogo em atualização</h3><p>Novos produtos chegando. Chame no Discord e garanta o seu.</p><a class="btn-primary full js-discord" style="text-align:center" href="${S().discord}" target="_blank">💜 Avise-me no Discord</a>`;}
- const car=$('carrossel'); if(car) car.innerHTML=PRODUCTS.filter(p=>p.stock>0).slice(0,14).map(cardHTML).join('')||'<p class="muted">Novidades chegando em breve. 🤝</p>';
+ if(hero){
+  const feat=PRODUCTS.find(p=>p.stock>0)||PRODUCTS[0];
+  if(feat){
+   hero.innerHTML='<div class="hero-card-tag">MAIS VENDIDO</div>'
+    +(feat.img?'<img src="'+feat.img+'" alt="'+esc(feat.name)+'" onerror="this.style.display=\'none\'">':'<div style="aspect-ratio:16/10;display:grid;place-items:center;font-size:64px;background:#0a0c15">'+(feat.emoji||'📦')+'</div>')
+    +'<h3>'+esc(feat.name)+'</h3><p>'+esc(catLabel(feat.cat))+' · Entrega '+esc(feat.delivery||'Automática')+'</p>'
+    +'<div class="hero-price"><s>'+BRL(feat.old)+'</s> <b>'+BRL(feat.price)+'</b></div>'
+    +'<button class="btn-primary full" onclick="addToCart(&quot;'+feat.id+'&quot;)">Adicionar ao carrinho</button>';
+  }else{
+   hero.innerHTML='<div class="hero-card-tag">EM BREVE</div><div style="aspect-ratio:16/10;display:grid;place-items:center;font-size:64px;background:#0a0c15">📦</div><h3>Catálogo em atualização</h3><p>Novos produtos chegando. Chame no Discord e garanta o seu.</p><a class="btn-primary full js-discord" style="text-align:center" href="'+S().discord+'" target="_blank">💜 Avise-me no Discord</a>';
+  }
+ }
  const vit=$('vitrine');
- if(vit) vit.innerHTML=PRODUCTS.length?CATS.map(c=>{const items=PRODUCTS.filter(p=>p.cat===c.id);return `<div class="cat-block" id="cat-${c.id}"><div class="cat-head"><h2>${c.icon} ${c.label}</h2><a class="muted" href="#" onclick="verCategoria('${c.id}');return false">Ver mais →</a></div><div class="grid">${items.slice(0,5).map(cardHTML).join('')||'<p class="muted">Em breve.</p>'}</div></div>`}).join(''):`<div class="cat-block" style="text-align:center;padding:40px"><h2>📦 Catálogo em atualização</h2><p class="muted">Estamos cadastrando novidades. Fale com a gente no Discord e receba as ofertas primeiro.</p><a class="btn-primary js-discord" href="${S().discord}" target="_blank">💜 Entrar no Discord</a></div>`;
+ if(!vit) return;
+ if(!PRODUCTS.length){
+  vit.innerHTML='<section style="text-align:center;padding:60px 0"><h2 style="font-size:26px">📦 Catálogo em atualização</h2><p class="muted" style="margin:10px 0 20px">Estamos cadastrando novidades. Fale com a gente no Discord e receba as ofertas primeiro.</p><a class="btn-primary js-discord" href="'+S().discord+'" target="_blank">💜 Entrar no Discord</a></section>';
+ }else{
+  const destaques=PRODUCTS.filter(p=>p.stock>0).slice(0,8);
+  vit.innerHTML=
+   (CATS.length?'<section style="margin:26px 0"><div class="section-head"><h2>🗂️ Categorias</h2></div><div class="cat-cards">'+CATS.map(catCardHTML).join('')+'</div></section>':'')
+   +(destaques.length?'<section><div class="section-head"><h2>🔥 Destaques</h2></div><div class="grid">'+destaques.map(cardHTML).join('')+'</div></section>':'')
+   +CATS.map(c=>{
+     const items=PRODUCTS.filter(p=>p.cat===c.id&&p.stock>0);
+     if(!items.length) return '';
+     return '<div class="cat-block" id="sec-'+c.id+'"><div class="cat-head"><h2>'+(c.icon||'📦')+' '+esc(c.label)+'</h2><a href="#" onclick="verCategoria(&quot;'+c.id+'&quot;);return false">Ver mais →</a></div><div class="grid">'+items.slice(0,10).map(cardHTML).join('')+'</div></div>';
+   }).join('');
+ }
  const nav=document.querySelector('.nav-cat');
- if(nav) nav.innerHTML=`<a href="#vitrine">Início</a>`+CATS.map(c=>`<a href="#cat-${c.id}">${c.label}</a>`).join('')+`<a href="#afiliados">Afiliados</a><a href="#avaliacoes">Avaliações</a>`;
+ if(nav) nav.innerHTML='<a href="#vitrine">Início</a>'+CATS.map(c=>'<a href="#" onclick="verCategoria(&quot;'+c.id+'&quot;);return false">'+esc(c.label)+'</a>').join('')+'<a href="#afiliados">Afiliados</a><a href="#avaliacoes">Avaliações</a>';
+ const at=$('affText'); if(at){const cm=DB.commissions||{};at.innerHTML='Você ganha <b>até '+(cm.steam||30)+'% de comissão</b> em cada venda feita pelo seu link e saca no PIX quando quiser.';}
+ const rq=document.querySelector('.reviews-score'); if(rq) rq.innerHTML=(S().rating||'4,6')+' <span>★★★★★</span> <small>Média nas avaliações de clientes</small>';
  renderCart();renderReviews();
 }
-function scrollCarrossel(d){$('carrossel').scrollBy({left:d*440,behavior:'smooth'})}
+function scrollCarrossel(d){const c=$('carrossel');if(c)c.scrollBy({left:d*440,behavior:'smooth'})}
+
 function verCategoria(id){const c=CATS.find(x=>x.id===id);const items=PRODUCTS.filter(p=>p.cat===id);
  $('produtoDetalhe').innerHTML=`<div class="prod-cat">${c.icon} ${c.label}</div><h2>Todos de ${c.label}</h2><div class="grid" style="margin-top:12px">${items.map(cardHTML).join('')||'<p class="muted">Nenhum produto.</p>'}</div>`;abrirModal('modalProduto')}
 function verProduto(id){const p=PRODUCTS.find(x=>x.id===id);if(!p)return;const rel=PRODUCTS.filter(x=>x.cat===p.cat&&x.id!==id).slice(0,4);
